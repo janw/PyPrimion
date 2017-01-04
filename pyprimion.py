@@ -14,9 +14,18 @@ default_pass = ''
 
 class Primion:
 
-    _urls = dict(base='',
-                 login='Login.jsp',
-                 journal='PersoBuchungen.jsp')
+    _urls = {'base': '',
+             'login': 'Login.jsp',
+             'journal_pre': 'Querybuchungsjournal.jsp',
+             'journal': 'buchungsjournal.jsp'
+             }
+
+    _info_strings = {'**': 'Deleted',
+                     '++': 'Corrected relatively',
+                     '==': 'Corrected absolutely',
+                     'FK': 'Erronous entry',
+                     '*': 'Holiday'
+                     }
 
     fullname = None
 
@@ -68,62 +77,121 @@ class Primion:
 
     def journal(self, date_start=None, date_end=None):
 
+        r_journal = self.session.get(self._baseurl + self._urls['journal_pre'])
+        soup_journal = BeautifulSoup(r_journal.text, 'html.parser')
+        user_id = soup_journal.find('input', attrs={'name': 'LSTUSERS'}).attrs['value']
+
         if date_end is None:
             date_end = date.today()
 
         if date_start is None:
             date_start = date_end + timedelta(days=-31)
 
-        current_year = date_start.year
-
         journal_data = {
-            'DATE_START': date_start,
-            'DATE_END': date_end,
+            'LSTUSERS': user_id,
+            'DATE_START': date_start.strftime('%d.%m.%Y'),
+            'DATE_END': date_end.strftime('%d.%m.%Y'),
             'DISPLAY_TYPE': 'BUCHUNG',
             'FUEHRENDE_NULLEN': 'ON',
             'ZEIT_TAG': 'ON',
             'SOLL_TAG': 'ON',
             'SALDO_TAG': 'ON',
+            'SALDO_SUM': 'ON,',
+            'ANZPROTAG': 2,
+            'OUTPUTART': 0,
+            'CB_KONTENKZ_HIDDEN': 'ON',
+            'RUND_B': 'ON',
         }
 
         r_journal = self.session.post(self._baseurl + self._urls['journal'], data=journal_data)
         soup_journal = BeautifulSoup(r_journal.text, 'html.parser')
 
-        tables = soup_journal.find_all('table', attrs={'id': 'ScrollTable'})
+        # Remove completely unnecessary children from soup
+        for script in soup_journal.findChildren('script'):
+            script.extract()
+        for div in soup_journal.findChildren('div', id='ScrollTableHeadSpan'):
+            div.extract()
+        for img in soup_journal.findChildren('img'):
+            img.extract()
+        for headline in soup_journal.findChildren(re.compile('^h[1-6]')):
+            headline.extract()
 
-        if len(tables):
-            table = tables[0]
-        else:
-            raise Exception('Did not find journal on page')
+        with open('journal.html', 'w') as f:
+            print(soup_journal.prettify(), file=f)
 
+        table = soup_journal.find('table', attrs={'id': 'ScrollTable'})
         self.table = table
+
+        current_year = date_start.year
         prev_row_date = None
+        row_date = None
+        data = {}
+
         for row in table.find_all('tr', attrs={'class': re.compile('ZebraRow')}):
-            first_col = next(row.children)
-            row_date = None
+            cells = row.findChildren('td')
 
-            if len(first_col.contents):
-                try:
-                    probable_date = first_col.contents[0].contents[0]
-                except AttributeError:
-                    pass
+            # Assume first cell to be the date, and try to regex it
+            date_match = re.search('^(\d+\.\d+.)', cells[0].string)
+            if date_match is None:
+                continue
 
-                try:
-                    row_date = datetime.strptime(probable_date, '%d.%m.')
+            row_data = {}
+            prev_row_date = row_date
+            row_date = datetime.strptime(date_match.group(), '%d.%m.').date()
+            iso_date = row_date.isoformat()
 
-                    if prev_row_date and prev_row_date.month > row_date.month:
-                        current_year = current_year + 1
+            if prev_row_date and prev_row_date.month > row_date.month:
+                current_year = current_year + 1
 
-                    row_date = row_date.replace(year=current_year)
-                except ValueError:
-                    pass
-                except TypeError:
-                    pass
+            row_date = row_date.replace(year=current_year)
 
-            if row_date:
-                prev_row_date = row_date
-                print('Parsing', row_date.strftime('%a, %d.%m.%Y'))
+            info = cells[2].string.strip()
+            if info in self._info_strings.keys():
+                row_data['info'] = self._info_strings[info]
 
+            probable_login = cells[3].string
+            holiday_match = re.search('\((.*)\)', probable_login)
+            if holiday_match:
+                row_data['holiday'] = holiday_match.group(1)
+                data[row_date] = row_data
+                continue
+
+            comptime_match = re.search('Zeitausgleich', probable_login)
+            if comptime_match:
+                row_data['info'] = probable_login
+                data[row_date] = row_data
+                continue
+
+            login_match = re.search('(\d+\:\d+)', cells[3].string)
+            if login_match:
+                row_login_time = datetime.strptime(login_match.group(), '%H:%M').time()
+                row_data['login'] = datetime.combine(row_date, row_login_time)
+
+            logout_match = re.search('(\d+\:\d+)', cells[4].string)
+            if logout_match:
+                row_logout_time = datetime.strptime(logout_match.group(), '%H:%M').time()
+                row_data['logout'] = datetime.combine(row_date, row_login_time)
+
+            if 'logout' in row_data.keys() and 'login' in row_data.keys():
+                row_duration = row_data['logout'] - row_data['login']
+                row_data['duration'] = row_duration
+
+            target_match = re.search('(\d+)\:(\d+)', cells[6].string)
+            if target_match:
+                row_data['target'] = timedelta(hours=int(target_match.group(1)),
+                                               minutes=int(target_match.group(2)))
+
+            if 'target' in row_data.keys() and 'duration' in row_data.keys():
+                row_data['day_balance'] = row_data['duration'] - row_data['target']
+
+            balance_match = re.search('(-?\d+)\:(\d+)', cells[8].string)
+            if balance_match:
+                row_data['total_balance'] = timedelta(hours=int(balance_match.group(1)),
+                                                      minutes=int(balance_match.group(2)))
+
+            data[row_date] = row_data
+
+        return data
 
 # if __name__ == "__main__":
 #     import sys
