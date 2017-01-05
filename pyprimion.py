@@ -23,6 +23,7 @@ class Primion:
     _default_date_delta = 3
 
     fullname = None
+    _user_id = None
 
     def __init__(self, baseurl):
 
@@ -59,9 +60,10 @@ class Primion:
 
     def journal(self, date_start=None, date_end=None):
 
-        r_journal = self.session.get(self._baseurl + self._urls['journal_pre'])
-        soup_journal = BeautifulSoup(r_journal.text, 'html.parser')
-        user_id = soup_journal.find('input', attrs={'name': 'LSTUSERS'}).attrs['value']
+        if self._user_id is None:
+            r_journal = self.session.get(self._baseurl + self._urls['journal_pre'])
+            soup_journal = BeautifulSoup(r_journal.text, 'html.parser')
+            self._user_id = soup_journal.find('input', attrs={'name': 'LSTUSERS'}).attrs['value']
 
         if date_end is None:
             date_end = datetime.today().date()
@@ -70,7 +72,7 @@ class Primion:
             date_start = date_end + timedelta(days=-self._default_date_delta)
 
         journal_data = {
-            'LSTUSERS': user_id,
+            'LSTUSERS': self._user_id,
             'DATE_START': date_start.strftime('%d.%m.%Y'),
             'DATE_END': date_end.strftime('%d.%m.%Y'),
             'DISPLAY_TYPE': 'BUCHUNG',
