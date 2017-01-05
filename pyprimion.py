@@ -3,10 +3,8 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-import configparser
-import os
-from collections import namedtuple
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
+
 
 class Primion:
 
@@ -22,11 +20,12 @@ class Primion:
                      '*': 'Holiday'
                      }
 
+    _default_date_delta = 3
+
     fullname = None
 
     def __init__(self, baseurl):
 
-        self._basepath = os.path.dirname(os.path.realpath(__file__))
         self._baseurl = baseurl
         self.session = requests.session()
 
@@ -65,10 +64,10 @@ class Primion:
         user_id = soup_journal.find('input', attrs={'name': 'LSTUSERS'}).attrs['value']
 
         if date_end is None:
-            date_end = date.today()
+            date_end = datetime.today().date()
 
         if date_start is None:
-            date_start = date_end + timedelta(days=-31)
+            date_start = date_end + timedelta(days=-self._default_date_delta)
 
         journal_data = {
             'LSTUSERS': user_id,
