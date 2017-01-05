@@ -9,7 +9,7 @@ PyPrimion is licensed under MIT License (a.k.a X11 license).
 
 ## Installation
 
-Installing PyPrimion is as simple as is gets with pip: `pip install pyprimion`.
+Installing PyPrimion is as simple as is gets with pip: `pip install git+https://github.com/Janwillhaus/PyPrimion.git`.
 
 ## Initialization and login
 
