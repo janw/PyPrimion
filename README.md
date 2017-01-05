@@ -41,6 +41,17 @@ p.journal(date_start=date(2016,5,17))
 p.journal(date_start=date(2015,4,25),date_end=date(2016,3,12))
 ```
 
+## Example: Determine today's closing time
+
+If you're working variable hours (no mandatory check-in time), it might be hard to keep track of your worked hours, and your daily closing time. This little snipped outputs today's closing time determined by the journal's check-in time, and your target working hours:
+
+```
+today = date.today()
+data = p.journal(date_start=today)[today]
+
+print('Today\'s closing time is',
+      (data['login'] + data['target']).strftime('%H:%M'))
+```
 
 ## License
 
