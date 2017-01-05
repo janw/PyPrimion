@@ -11,5 +11,6 @@ setup(name='PyPrimion',
       py_modules=['pyprimion'],
       url='https://github.com/Janwillhaus/PyPrimion',
       packages=None,
+      install_requires=['beautifulsoup4', 'requests'],
       long_description=open('README.md').read(),
       )
