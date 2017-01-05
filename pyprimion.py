@@ -8,14 +8,9 @@ import os
 from collections import namedtuple
 from datetime import datetime, date, timedelta
 
-default_user = ''
-default_pass = ''
-
-
 class Primion:
 
-    _urls = {'base': '',
-             'login': 'Login.jsp',
+    _urls = {'login': 'Login.jsp',
              'journal_pre': 'Querybuchungsjournal.jsp',
              'journal': 'buchungsjournal.jsp'
              }
@@ -29,28 +24,16 @@ class Primion:
 
     fullname = None
 
-    def __init__(self, baseurl=None, username=None, password=None):
+    def __init__(self, baseurl):
 
         self._basepath = os.path.dirname(os.path.realpath(__file__))
-
-        if baseurl is None:
-            self._baseurl = self._urls['base']
-        else:
-            self._baseurl = baseurl
-
-        if username is None:
-            self._username = default_user
-        else:
-            self._username = username
-
-        if password is None:
-            self._password = default_pass
-        else:
-            self._password = password
-
+        self._baseurl = baseurl
         self.session = requests.session()
 
-    def login(self):
+    def login(self, username, password):
+
+        self._username = username
+        self._password = password
 
         login_data = {
             'post': 'true',
