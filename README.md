@@ -21,6 +21,8 @@ p = Primion(baseurl='https://location.of-your.primion/primeweb/')
 p.login(username='max4711', 'supersecurepassword')
 ```
 
+**Caveat:** The Webinterface might have a relatively short session timeout configured, and new queries might fail after 10-15 minutes. PyPrimion currently does not have proper timeout detection, so you might have to try-except `AttributeError`s when querying in long intervals, or just re-login beforehand. Future versions of PyPrimion will do this automatically (see issue #1).
+
 ## Downloading journal data
 
 To get the journal data of the past three days, simply execute the `journal` method of PyPrimion:
