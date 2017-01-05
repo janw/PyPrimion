@@ -6,9 +6,6 @@ PyPrimion is a webinterface handler for the Primion Prime Web Systems used by ma
 
 PyPrimion allows you to access data from your time tracking journal right from within Python, utilizing native datatypes such as `datetime.date`, and `datetime.timedelta` to represent values from the webinterface.
 
-PyPrimion is licensed under MIT License (a.k.a X11 license).
-(c) 2017, Jan Willhaus
-
 ## Installation
 
 Installing PyPrimion is as simple as is gets with pip: `pip install git+https://github.com/Janwillhaus/PyPrimion.git`.
@@ -43,3 +40,11 @@ p.journal(date_start=date(2016,5,17))
 # From April 25, 2015 til March 12, 2016
 p.journal(date_start=date(2015,4,25),date_end=date(2016,3,12))
 ```
+
+
+## License
+
+PyPrimion is licensed under MIT License (a.k.a X11 license).<br />
+(c) 2017, Jan Willhaus
+
+See included `LICENSE` file for the full text.
