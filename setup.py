@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='PyPrimion',
-      version='0.1.1',
+      version='0.1.2',
       description='Webinterface handler for the Primion Prime Web Systems time tracking',
       author='Jan Willhaus',
       author_email='mail@janwillhaus.de',
