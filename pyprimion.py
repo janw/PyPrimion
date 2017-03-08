@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from datetime import datetime, timedelta
+from os import path
 
 
 class Primion:
@@ -28,6 +29,7 @@ class Primion:
     def __init__(self, baseurl):
 
         self._baseurl = baseurl
+        self._basepath = path.dirname(path.abspath(__file__))
         self.session = requests.session()
 
     def login(self, username, password):
@@ -100,7 +102,7 @@ class Primion:
         for headline in soup_journal.findChildren(re.compile('^h[1-6]')):
             headline.extract()
 
-        with open('journal.html', 'w') as f:
+        with open(path.join(self._basepath, 'journal.html'), 'w') as f:
             print(soup_journal.prettify(), file=f)
 
         table = soup_journal.find('table', attrs={'id': 'ScrollTable'})
