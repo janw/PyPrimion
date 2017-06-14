@@ -21,6 +21,8 @@ class Primion:
                      '*': 'Holiday'
                      }
 
+    _write_journal = False
+
     _default_date_delta = 3
 
     fullname = None
@@ -102,8 +104,9 @@ class Primion:
         for headline in soup_journal.findChildren(re.compile('^h[1-6]')):
             headline.extract()
 
-        with open(path.join(self._basepath, 'journal.html'), 'w') as f:
-            print(soup_journal.prettify(), file=f)
+        if self._write_journal:
+            with open(path.join(self._basepath, 'journal.html'), 'w') as f:
+                print(soup_journal.prettify(), file=f)
 
         table = soup_journal.find('table', attrs={'id': 'ScrollTable'})
         self.table = table
