@@ -73,7 +73,7 @@ class Primion:
             date_end = pendulum.today()
 
         if date_start is None:
-            date_start = date_end.substract(days=self._default_date_delta)
+            date_start = date_end.subtract(days=self._default_date_delta)
 
         journal_data = {
             'LSTUSERS': self._user_id,
