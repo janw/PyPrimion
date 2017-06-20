@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='PyPrimion',
-      version='0.1.2',
+      version='0.1.3',
       description='Webinterface handler for the Primion Prime Web Systems time tracking',
       author='Jan Willhaus',
       author_email='mail@janwillhaus.de',
@@ -11,6 +11,6 @@ setup(name='PyPrimion',
       py_modules=['pyprimion'],
       url='https://github.com/Janwillhaus/PyPrimion',
       packages=None,
-      install_requires=['beautifulsoup4', 'requests'],
+      install_requires=['beautifulsoup4', 'requests', 'pendulum'],
       long_description=open('README.md').read(),
       )
