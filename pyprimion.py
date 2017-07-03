@@ -22,6 +22,7 @@ class Primion:
                      }
 
     _write_journal = False
+    _print_login_name = False
 
     _default_date_delta = 3
 
@@ -59,7 +60,7 @@ class Primion:
             if len(item.contents) and item.contents[0] == 'Name\xa0\xa0':
                 self.fullname = items_beschriftung[idx + 1].contents[0]
 
-        if self.fullname is not None:
+        if self.fullname is not None and self._print_login_name:
             print('Login successful as:', self.fullname)
 
     def journal(self, date_start=None, date_end=None):
