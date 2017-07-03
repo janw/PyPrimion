@@ -3,7 +3,7 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-import pendulum
+from datetime import datetime, timedelta
 from os import path
 
 
@@ -70,10 +70,14 @@ class Primion:
             self._user_id = soup_journal.find('input', attrs={'name': 'LSTUSERS'}).attrs['value']
 
         if date_end is None:
-            date_end = pendulum.today()
+            date_end = datetime.today()
+        elif type(date_end) is datetime:
+            date_end = date_end.date()
 
         if date_start is None:
-            date_start = date_end.subtract(days=self._default_date_delta)
+            date_start = date_end - timedelta(days=self._default_date_delta)
+        elif type(date_start) is datetime:
+            date_start = date_start.date()
 
         journal_data = {
             'LSTUSERS': self._user_id,
@@ -126,8 +130,7 @@ class Primion:
 
             row_data = {}
             prev_row_date = row_date
-            row_date = pendulum.strptime(date_match.group(), '%d.%m.')
-            iso_date = row_date.isoformat()
+            row_date = datetime.strptime(date_match.group(), '%d.%m.')
 
             if prev_row_date and prev_row_date.month > row_date.month:
                 current_year = current_year + 1
@@ -153,13 +156,13 @@ class Primion:
 
             login_match = re.search('(\d+\:\d+)', cells[3].string)
             if login_match:
-                row_login_time = pendulum.strptime(login_match.group(), '%H:%M').time()
-                row_data['login'] = pendulum.combine(row_date, row_login_time)
+                row_login_time = datetime.strptime(login_match.group(), '%H:%M').time()
+                row_data['login'] = datetime.combine(row_date, row_login_time)
 
             logout_match = re.search('(\d+\:\d+)', cells[4].string)
             if logout_match:
-                row_logout_time = pendulum.strptime(logout_match.group(), '%H:%M').time()
-                row_data['logout'] = pendulum.combine(row_date, row_login_time)
+                row_logout_time = datetime.strptime(logout_match.group(), '%H:%M').time()
+                row_data['logout'] = datetime.combine(row_date, row_logout_time)
 
             if 'logout' in row_data.keys() and 'login' in row_data.keys():
                 row_duration = row_data['logout'] - row_data['login']
@@ -167,18 +170,18 @@ class Primion:
 
             target_match = re.search('(\d+)\:(\d+)', cells[6].string)
             if target_match:
-                row_data['target'] = pendulum.interval(hours=int(target_match.group(1)),
-                                                       minutes=int(target_match.group(2)))
+                row_data['target'] = timedelta(hours=int(target_match.group(1)),
+                                               minutes=int(target_match.group(2)))
 
             if 'target' in row_data.keys() and 'duration' in row_data.keys():
                 row_data['day_balance'] = row_data['duration'] - row_data['target']
 
             balance_match = re.search('(-?\d+)\:(\d+)', cells[8].string)
             if balance_match:
-                row_data['total_balance'] = pendulum.interval(hours=int(balance_match.group(1)),
-                                                              minutes=int(balance_match.group(2)))
+                row_data['total_balance'] = timedelta(hours=int(balance_match.group(1)),
+                                                      minutes=int(balance_match.group(2)))
 
-            data[row_date] = row_data
+            data[row_date.date()] = row_data
 
         return data
 
