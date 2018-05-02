@@ -3,8 +3,58 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from os import path
+import pandas as pd
+from pandas.io.parsers import TextParser
+import json
+
+TIMEDELTA_FMT = "+%02d:%02d"
+TIMEDELTA_FMT_NEG = "-%02d:%02d"
+
+
+def parse_hhmm_to_timedelta(hhmm, allow_negatives=False, parse_as_time=False):
+    import re
+    from datetime import timedelta
+
+    if allow_negatives and not parse_as_time:
+        re_match = re.search('(-?\d+)\:(\d+)', hhmm)
+    else:
+        re_match = re.search('(\d+)\:(\d+)', hhmm)
+
+    if re_match:
+        if parse_as_time:
+            return datetime.strptime(re_match.group(), '%H:%M').time()
+
+        hourgroup = re_match.group(1)
+        minutesgroup = re_match.group(2)
+        if hourgroup.startswith('-'):
+            hourgroup = hourgroup[1:]
+            return timedelta(hours=-int(hourgroup), minutes=-int(minutesgroup))
+        else:
+            return timedelta(hours=int(hourgroup), minutes=int(minutesgroup))
+
+    return None
+
+
+class DateTimeJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        elif isinstance(obj, date):
+            return obj.isoformat()
+        elif isinstance(obj, timedelta):
+            seconds = obj.total_seconds()
+            if seconds < 0:
+                m, s = divmod(seconds * (-1), 60)
+                h, m = divmod(m, 60)
+                return TIMEDELTA_FMT_NEG % (h, m)
+            else:
+                m, s = divmod(seconds, 60)
+                h, m = divmod(m, 60)
+                return TIMEDELTA_FMT % (h, m)
+
+        return super().default(obj)
 
 
 class Primion:
@@ -63,7 +113,7 @@ class Primion:
         if self.fullname is not None and self._print_login_name:
             print('Login successful as:', self.fullname)
 
-    def journal(self, date_start=None, date_end=None):
+    def _construct_post_data(self, date_start=None, date_end=None):
 
         if self._user_id is None:
             r_journal = self.session.get(self._baseurl + self._urls['journal_pre'])
@@ -80,38 +130,38 @@ class Primion:
         elif type(date_start) is datetime:
             date_start = date_start.date()
 
-        journal_data = {
+        return ({
             'LSTUSERS': self._user_id,
             'DATE_START': date_start.strftime('%d.%m.%Y'),
             'DATE_END': date_end.strftime('%d.%m.%Y'),
             'DISPLAY_TYPE': 'BUCHUNG',
-            'FUEHRENDE_NULLEN': 'ON',
+            'LSTUSERS': '514500000545710F',
+            'NNAME': 'Willhaus, Jan',
             'ZEIT_TAG': 'ON',
+            'ZEIT_SUM': 'ON',
+            'CB_KONTENKZ': 'ON',
+            'OUTPUTARTKZ': '0',
+            'OUTPUTART': '0',
+            'KONTOGRUPPE': '0',
             'SOLL_TAG': 'ON',
+            'SOLL_SUM': 'ON',
             'SALDO_TAG': 'ON',
-            'SALDO_SUM': 'ON,',
-            'ANZPROTAG': 2,
-            'OUTPUTART': 0,
-            'CB_KONTENKZ_HIDDEN': 'ON',
+            'SALDO_SUM': 'ON',
+            'SUMMENWERTE': 'ON',
+            'KORRFEHLKONT': 'ON',
+            'KORRLOHNKONT': 'ON',
             'RUND_B': 'ON',
-        }
+            'ANZPROTAG': '2',
+            'FUEHRENDE_NULLEN': 'ON',
+            'LAYOUT': '0',
+            'AKTKONTEN': 'ON',
+        }, date_start)
 
+    def journal(self, date_start=None, date_end=None):
+
+        journal_data, date_start = self._construct_post_data(date_start, date_end)
         r_journal = self.session.post(self._baseurl + self._urls['journal'], data=journal_data)
         soup_journal = BeautifulSoup(r_journal.text, 'html.parser')
-
-        # Remove completely unnecessary children from soup
-        for script in soup_journal.findChildren('script'):
-            script.extract()
-        for div in soup_journal.findChildren('div', id='ScrollTableHeadSpan'):
-            div.extract()
-        for img in soup_journal.findChildren('img'):
-            img.extract()
-        for headline in soup_journal.findChildren(re.compile('^h[1-6]')):
-            headline.extract()
-
-        if self._write_journal:
-            with open(path.join(self._basepath, 'journal.html'), 'w') as f:
-                print(soup_journal.prettify(), file=f)
 
         table = soup_journal.find('table', attrs={'id': 'ScrollTable'})
         self.table = table
@@ -124,12 +174,11 @@ class Primion:
         for row in table.find_all('tr', attrs={'class': re.compile('ZebraRow')}):
             cells = row.findChildren('td')
 
-            # Assume first cell to be the date, and try to regex it
+            # DATUM
             date_match = re.search('^(\d+\.\d+.)', cells[0].string)
             if date_match is None:
                 continue
 
-            row_data = {}
             prev_row_date = row_date
             row_date = datetime.strptime(date_match.group(), '%d.%m.')
 
@@ -138,54 +187,62 @@ class Primion:
 
             row_date = row_date.replace(year=current_year)
 
+            idx = row_date.date().isoformat()
+            if data.get(idx) is None:
+                data[idx] = {
+                    'periods': [],
+                }
+
+            # INFO
             info = cells[2].string.strip()
             if info in self._info_strings.keys():
-                row_data['info'] = self._info_strings[info]
+                data[idx]['info'] = self._info_strings[info]
 
+            # KOMMEN ZEIT
             probable_login = cells[3].string
             holiday_match = re.search('\((.*)\)', probable_login)
             if holiday_match:
-                row_data['holiday'] = holiday_match.group(1)
-                data[row_date] = row_data
+                data[idx]['holiday'] = holiday_match.group(1)
                 continue
 
             comptime_match = re.search('Zeitausgleich', probable_login)
             if comptime_match:
-                row_data['info'] = probable_login
-                data[row_date] = row_data
+                data[idx]['info'] = probable_login
                 continue
 
-            login_match = re.search('(\d+\:\d+)', cells[3].string)
-            if login_match:
-                row_login_time = datetime.strptime(login_match.group(), '%H:%M').time()
-                row_data['login'] = datetime.combine(row_date, row_login_time)
+            row_data = {}
+            result = parse_hhmm_to_timedelta(cells[3].string, parse_as_time=True)
+            if result is not None:
+                row_data['login'] = datetime.combine(row_date, result)
 
-            logout_match = re.search('(\d+\:\d+)', cells[4].string)
-            if logout_match:
-                row_logout_time = datetime.strptime(logout_match.group(), '%H:%M').time()
-                row_data['logout'] = datetime.combine(row_date, row_logout_time)
+            # GEHEN ZEIT
+            result = parse_hhmm_to_timedelta(cells[4].string, parse_as_time=True)
+            if result is not None:
+                row_data['logout'] = datetime.combine(row_date, result)
 
+            # Insert calculated period duration
             if 'logout' in row_data.keys() and 'login' in row_data.keys():
                 row_duration = row_data['logout'] - row_data['login']
                 row_data['duration'] = row_duration
 
-            target_match = re.search('(\d+)\:(\d+)', cells[6].string)
-            if target_match:
-                row_data['target'] = timedelta(hours=int(target_match.group(1)),
-                                               minutes=int(target_match.group(2)))
+            # TAG SOLLZEIT
+            result = parse_hhmm_to_timedelta(cells[6].string, allow_negatives=False)
+            if result is not None:
+                row_data['target'] = result
 
-            if 'target' in row_data.keys() and 'duration' in row_data.keys():
-                row_data['day_balance'] = row_data['duration'] - row_data['target']
+            # TAG SALDO
+            result = parse_hhmm_to_timedelta(cells[7].string, allow_negatives=True)
+            if result is not None:
+                print(result.total_seconds())
+                row_data['day_balance'] = result
 
-            balance_match = re.search('(-?\d+)\:(\d+)', cells[8].string)
-            if balance_match:
-                row_data['total_balance'] = timedelta(hours=int(balance_match.group(1)),
-                                                      minutes=int(balance_match.group(2)))
+            # MONAT SALDO
+            result = parse_hhmm_to_timedelta(cells[10].string, allow_negatives=True)
+            if result is not None:
+                row_data['total_balance'] = result
 
-            data[row_date.date()] = row_data
-
+            data[idx]['periods'].append(row_data)
         return data
 
-# if __name__ == "__main__":
-#     import sys
-#     fib(int(sys.argv[1]))
+    def print_journal(self):
+        print(json.dumps(self.journal(), indent=4, cls=DateTimeJSONEncoder))
