@@ -31,7 +31,7 @@ To get the journal data of the past three days, simply execute the `journal` met
 p.journal()
 ```
 
-The returned data will be a dictionary with `datetime.date` keys for each parsed date from today til three days ago. If you want to download data from a specific date range, you may provide `date_start`, and/or `date_end`:
+The returned data will be a dictionary keyed by date (in `datetime.date.isoformat()`) for each parsed date from today til three days ago. If you want to download data from a specific date range, you may provide `date_start`, and/or `date_end`:
 
 ```python
 from datetime import date
@@ -40,7 +40,7 @@ from datetime import date
 p.journal(date_start=date(2016,5,17))
 
 # From April 25, 2015 til March 12, 2016
-p.journal(date_start=date(2015,4,25),date_end=date(2016,3,12))
+p.journal(date_start=date(2015,4,25), date_end=date(2016,3,12))
 ```
 
 ## Example: Determine today's closing time
@@ -52,7 +52,7 @@ today = date.today().isoformat()
 data = p.journal(date_start=today)[today]
 
 print('Today\'s closing time is',
-      (data['login'] + data['target']).strftime('%H:%M'))
+      (data['periods'][-1]['login'] - data['periods'][-1]['day_balance']).strftime('%H:%M'))
 ```
 
 ## License

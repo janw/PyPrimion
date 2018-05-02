@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from datetime import datetime, timedelta, date
+from dateutil.parser import parse
 from os import path
 import pandas as pd
 from pandas.io.parsers import TextParser
@@ -122,13 +123,18 @@ class Primion:
 
         if date_end is None:
             date_end = datetime.today()
-        elif type(date_end) is datetime:
+        elif isinstance(date_end, datetime):
             date_end = date_end.date()
+        elif isinstance(date_end, str):
+            date_end = parse(date_end).date()
+
 
         if date_start is None:
             date_start = date_end - timedelta(days=self._default_date_delta)
-        elif type(date_start) is datetime:
+        elif isinstance(date_start, datetime):
             date_start = date_start.date()
+        elif isinstance(date_start, str):
+            date_start = parse(date_start).date()
 
         return ({
             'LSTUSERS': self._user_id,
@@ -233,7 +239,6 @@ class Primion:
             # TAG SALDO
             result = parse_hhmm_to_timedelta(cells[7].string, allow_negatives=True)
             if result is not None:
-                print(result.total_seconds())
                 row_data['day_balance'] = result
 
             # MONAT SALDO
