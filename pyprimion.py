@@ -348,8 +348,10 @@ def cli():
             config['Primion'] = {}
         config['Primion']['url'] = primion_url
         config['Primion']['username'] = primion_user
-        config.write(configfile)
-        keyring.set_password('pyprimion', primion_user, primion_passwd)
+
+        with open(configfile, 'w') as configfilep:
+            config.write(configfilep)
+            keyring.set_password('pyprimion', primion_user, primion_passwd)
 
     prim = Primion(primion_url)
     if verbose > 1:
