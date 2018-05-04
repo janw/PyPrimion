@@ -58,20 +58,15 @@ class DateTimeJSONEncoder(json.JSONEncoder):
         elif isinstance(obj, date):
             return obj.isoformat()
         elif isinstance(obj, timedelta):
-            seconds = obj.total_seconds()
-            if seconds < 0:
-                m, s = divmod(seconds * (-1), 60)
-                h, m = divmod(m, 60)
-                return TIMEDELTA_FMT_NEG % (h, m)
-            else:
-                m, s = divmod(seconds, 60)
-                h, m = divmod(m, 60)
-                return TIMEDELTA_FMT % (h, m)
+            return parse_timedelta_to_TDFMT(obj)
 
         return super().default(obj)
 
 
 class Primion:
+
+    _lunchbreak_duration = timedelta(minutes=30)
+    _lunchbreak_after_duration = timedelta(hours=6)
 
     _urls = {'login': 'Login.jsp',
              'journal_pre': 'Querybuchungsjournal.jsp',
@@ -95,8 +90,11 @@ class Primion:
 
     def __init__(self, baseurl):
 
+        if not baseurl.endswith('/'):
+            baseurl += '/'
+
         self._baseurl = baseurl
-        self._basepath = path.dirname(path.abspath(__file__))
+        self._HERE = path.dirname(path.abspath(__file__))
         self.session = requests.session()
 
     def login(self, username, password):
@@ -140,7 +138,6 @@ class Primion:
             date_end = date_end.date()
         elif isinstance(date_end, str):
             date_end = parse(date_end).date()
-
 
         if date_start is None:
             date_start = date_end - timedelta(days=self._default_date_delta)
@@ -264,3 +261,160 @@ class Primion:
 
     def print_journal(self):
         print(json.dumps(self.journal(), indent=4, cls=DateTimeJSONEncoder))
+
+
+def cli():
+    from configparser import ConfigParser
+    import argparse
+    import keyring
+    from os import environ
+
+    now = datetime.now()
+    today = datetime.today()
+    verbose = GLOBAL_VERBOSITY
+
+    XDG_CONFIG_HOME = environ.get(
+        'XDG_CONFIG_HOME',
+        path.expandvars(path.join('$HOME', '.config')))
+
+    configfile = path.join(XDG_CONFIG_HOME, CONFIG_FILENAME)
+    config = ConfigParser(allow_no_value=True)
+    config.read(configfile)
+
+    parser = argparse.ArgumentParser(description='Track your today\'s working hours.')
+
+    parser.add_argument('-d', '--delta', dest='delta', action='store_true',
+                        help='''
+                        Only output the delta of work time, nothing more.
+                        ''')
+    parser.add_argument('-co', '--check-out', dest='checkout', action='store_true',
+                        help='''
+                        Only output the target check-out time, nothing more.
+                        ''')
+    parser.add_argument('-v', '--verbose', dest='verbose', action='count',
+                        help='''
+                        Increase the level of verbosity of the command.
+                        ''')
+    parser.add_argument('-U', '--URL', dest='url',  # action='count',
+                        help='''
+                        URL of your company's PrimeWeb website.
+                        ''')
+    parser.add_argument('-u', '--user', dest='user',  # action='count',
+                        help='''
+                        Username to use to log in.
+                        ''')
+    parser.add_argument('-p', '--pass', dest='passwd',  # action='count',
+                        help='''
+                        Password to use to log in.
+                        ''')
+    parser.add_argument('-s', '--save-login', dest='save_login', action='store_true',
+                        help='''
+                        Save the entered login details (URL, username) in a
+                        config file, and the password in the system keyring.
+                        Next time you run pyprimion, you won't need to add
+                        -U, -u, -p.
+                        ''')
+
+    args = parser.parse_args()
+
+    if args.delta or args.checkout:
+        verbose = -1
+
+    primion_url = ''
+    primion_user = ''
+    primion_passwd = ''
+    if 'Primion' in config:
+        primion_url = config['Primion'].get('url', '')
+        primion_user = config['Primion'].get('username', '')
+        primion_passwd = keyring.get_password('pyprimion', primion_user)
+
+    # Input arguments override settings in configfile
+    if args.url is not None:
+        primion_url = args.url
+    if args.user is not None:
+        primion_user = args.user
+    if args.passwd is not None:
+        primion_passwd = args.passwd
+    if args.verbose is not None:
+        verbose = args.verbose
+
+    if '' in [primion_url, primion_user, primion_passwd]:
+        print('please provide URL, username, and password')
+        parser.print_usage()
+        return
+
+    if args.save_login:
+        if 'Primion' not in config:
+            config['Primion'] = {}
+        config['Primion']['url'] = primion_url
+        config['Primion']['username'] = primion_user
+        config.write(configfile)
+        keyring.set_password('pyprimion', primion_user, primion_passwd)
+
+    prim = Primion(primion_url)
+    if verbose > 1:
+        prim._print_login_name = True
+
+    prim.login(username=primion_user,
+               password=primion_passwd)
+    journ = prim.journal(date_start=today, date_end=today)
+    journ = journ.popitem()[1]
+    day_balance = journ['periods'][-1]['day_balance']
+    coretime = journ['periods'][-1]['target']
+
+    try:
+        time_of_checkin = journ['periods'][-1].get('login', None)
+    except IndexError:
+        time_of_checkin = None
+
+    if time_of_checkin is None:
+        raise Exception('Journal contains no check-in time for today. Have you checked in?')
+
+    time_of_checkout = time_of_checkin - day_balance
+    time_after_lunchbreak = time_of_checkout + prim._lunchbreak_duration
+
+    verb_print(verbose, 'Your core time from Primion: %s' % coretime, verbose=2)
+    verb_print(verbose, 'Downloaded check-in time from Primion:   %s' % time_of_checkin, verbose=1)
+    verb_print(verbose, 'Your current period\'s balance was: %s' % parse_timedelta_to_TDFMT(day_balance), verbose=2)
+    verb_print(verbose, 'Your target check-out time from Primion: %s' % time_of_checkout, verbose=1)
+
+    time_delta = time_of_checkout - now
+    time_delta_lunchbreak = time_after_lunchbreak - now
+    time_delta_overtime = now - time_after_lunchbreak
+
+    if args.delta:
+        if (now - time_of_checkout).total_seconds() < 0:
+            print('-%s' % (time_of_checkout - now))
+        else:
+            print(now - time_of_checkout)
+
+    elif args.checkout:
+        print(time_of_checkout)
+
+    else:
+        if time_delta.total_seconds() > 0:
+            print('You still have %s to go' % time_delta)
+        elif time_delta_lunchbreak.total_seconds() > 0:
+            print('Core time is done. You are still %s in limbo' % time_delta_lunchbreak)
+        else:
+            print('Time to check out. You are in overtime for %s' % time_delta_overtime)
+
+    return
+
+
+def verb_print(verbosity_level, *args, **kwargs):
+    import builtins
+    """My custom print() function."""
+    # Adding new arguments to the print function signature
+    # is probably a bad idea.
+    # Instead consider testing if custom argument keywords
+    # are present in kwargs
+    if kwargs.get('verbose') is not None:
+        if kwargs.pop('verbose') <= verbosity_level:
+            return builtins.print(*args, **kwargs)
+    else:
+        return builtins.print(*args, **kwargs)
+
+
+if __name__ == "__main__":
+    cli()

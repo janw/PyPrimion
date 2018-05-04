@@ -6,6 +6,8 @@ name = "pypi"
 [packages]
 "bs4" = "*"
 requests = "*"
+keyring = "*"
+configparser = "*"
 
 [dev-packages]
 ipython = "*"
