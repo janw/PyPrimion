@@ -307,12 +307,17 @@ def cli():
                         help='''
                         Password to use to log in.
                         ''')
-    parser.add_argument('-s', '--save-login', dest='save_login', action='store_true',
+    parser.add_argument('--save-login', dest='save_login', action='store_true',
                         help='''
                         Save the entered login details (URL, username) in a
                         config file, and the password in the system keyring.
                         Next time you run pyprimion, you won't need to add
                         -U, -u, -p.
+                        ''')
+    parser.add_argument('--delete-login', dest='delete_login', action='store_true',
+                        help='''
+                        Delete previously saved login credentials from config and
+                        keyring. This option overrides --save-login.
                         ''')
 
     args = parser.parse_args()
@@ -338,6 +343,19 @@ def cli():
     if args.verbose is not None:
         verbose = args.verbose
 
+    if args.delete_login:
+        if 'Primion' in config:
+            config['Primion']['url'] = ''
+            config['Primion']['username'] = ''
+            with open(configfile, 'w') as configfilep:
+                config.write(configfilep)
+
+        try:
+            keyring.delete_password('pyprimion', primion_user)
+        except keyring.errors.PasswordDeleteError:
+            pass
+        return
+
     if '' in [primion_url, primion_user, primion_passwd]:
         print('please provide URL, username, and password')
         parser.print_usage()
@@ -352,6 +370,7 @@ def cli():
         with open(configfile, 'w') as configfilep:
             config.write(configfilep)
             keyring.set_password('pyprimion', primion_user, primion_passwd)
+        return
 
     prim = Primion(primion_url)
     if verbose > 1:
