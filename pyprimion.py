@@ -6,13 +6,14 @@ import re
 from datetime import datetime, timedelta, date
 from dateutil.parser import parse
 from os import path
-import pandas as pd
-from pandas.io.parsers import TextParser
 import json
 
-TIMEDELTA_FMT = "+%02d:%02d"
-TIMEDELTA_FMT_NEG = "-%02d:%02d"
+TIMEDELTA_FMT = "+%d:%02d:%02d"
+TIMEDELTA_FMT_NEG = "-%d:%02d:%02d"
 
+HERE = path.dirname(path.realpath(__file__))
+CONFIG_FILENAME = 'pyprimion.ini'
+GLOBAL_VERBOSITY = 0
 
 def parse_hhmm_to_timedelta(hhmm, allow_negatives=False, parse_as_time=False):
     import re
@@ -36,6 +37,18 @@ def parse_hhmm_to_timedelta(hhmm, allow_negatives=False, parse_as_time=False):
             return timedelta(hours=int(hourgroup), minutes=int(minutesgroup))
 
     return None
+
+
+def parse_timedelta_to_TDFMT(timedelta_obj):
+    seconds = timedelta_obj.total_seconds()
+    if seconds < 0:
+        m, s = divmod(seconds * (-1), 60)
+        h, m = divmod(m, 60)
+        return TIMEDELTA_FMT_NEG % (h, m, s)
+    else:
+        m, s = divmod(seconds, 60)
+        h, m = divmod(m, 60)
+        return TIMEDELTA_FMT % (h, m, s)
 
 
 class DateTimeJSONEncoder(json.JSONEncoder):
