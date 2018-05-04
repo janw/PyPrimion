@@ -1,3 +1,8 @@
 *.pyc
 __pycache__/
 journal.html
+
+# Pypi distribution
+PyPrimion.egg-info/
+build/
+dist/
