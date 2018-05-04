@@ -5,8 +5,6 @@ from setuptools import setup
 # To use a consistent encoding
 from codecs import open
 from os import path
-from pipenv.project import Project
-from pipenv.utils import convert_deps_to_pip
 
 here = path.abspath(path.dirname(__file__))
 
@@ -15,14 +13,15 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 
-# Get requirements and testsuite requirements from Pipfile
-pfile = Project(chdir=False).parsed_pipfile
-requirements = convert_deps_to_pip(pfile['packages'], r=False)
-test_requirements = convert_deps_to_pip(pfile['dev-packages'], r=False)
-
+requirements = [
+    'bs4',
+    'requests',
+    'keyring',
+    'configparser',
+]
 
 setup(name='PyPrimion',
-      version='0.3',
+      version='0.3.1',
       description='Webinterface handler for the Primion Prime Web Systems time tracking',
 
       long_description=long_description,
@@ -33,7 +32,6 @@ setup(name='PyPrimion',
       author='Jan Willhaus',
       author_email='mail@janwillhaus.de',
       install_requires=requirements,
-      tests_require=requirements + test_requirements,
       classifiers=[
           # How mature is this project? Common values are
           #   3 - Alpha
