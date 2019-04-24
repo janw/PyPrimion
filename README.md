@@ -1,6 +1,6 @@
 # PyPrimion
 
-**PyPrimion is currently a work-in-progress. Only journal data downloading is supported yet.**
+**PyPrimion is unmaintained as I have no access to a PWS instance anymore.**
 
 PyPrimion is a webinterface handler for the Primion Prime Web Systems used by many companies for employee time tracking purposes.
 
@@ -8,7 +8,7 @@ PyPrimion allows you to access data from your time tracking journal right from w
 
 ## Installation
 
-Installing PyPrimion is as simple as is gets with pip: `pip install git+https://github.com/Janwillhaus/PyPrimion.git`.
+Installing PyPrimion is as simple as is gets with pip: `pip install git+https://github.com/janw/PyPrimion.git`.
 
 ## Initialization and login
 
